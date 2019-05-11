@@ -478,7 +478,7 @@ If the test is positive, what is the relative risk of having the disease?
 ```{r}
 mean(disease[test==1]==1)/mean(disease==1)
 ```
-<br>
+
 ####`r "\U1F440"`Check 2
 **Q1**<br>
 We are now going to write code to compute conditional probabilities for being male in the ```heights``` dataset. Round the heights to the closest inch. Plot the estimated conditional probability \( P(x) = \mbox{Pr}(\mbox{Male} | \mbox{height}=x)\) for each \(x\).
