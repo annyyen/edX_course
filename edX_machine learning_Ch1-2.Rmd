@@ -1,0 +1,587 @@
+---
+title: "edX_machine learning (Ch1-2)"
+author: "Anny"
+date: "`r Sys.time()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+[Course](https://courses.edx.org/courses/course-v1:HarvardX+PH125.8x+2T2018/course/)
+
+###1. Introduction to Machine Learning Overview
+After completing this section, you will be able to:
+
++ Explain the difference between the **outcome** and the **features**.
+
++ Explain when to use **classification** and when to use **prediction**.
+
++ Explain the importance of **prevalence**.
+
++ Explain the difference between **sensitivity** and **specificity**.
+
+####`r "\U1F440"`Check
+**Q1**<br>
+A key feature of machine learning is that the algorithms are built on **data**. <font color= VioletRed>TRUE</font><br>
+**Q2**<br>
+In machine learning, we build algorithms that take feature values (X) and train a model using known outcomes (Y) that is then used to predict outcomes when presented with features without known outcomes. <font color= VioletRed>TRUE</font><br>
+
+###2. Machine Learning Basics Overview
+After completing this section, you will be able to:
+
++ Start to use the **caret** package.
+
++ Construct and interpret a **confusion matrix**.
+
++ Use **conditional probabilities** in the context of machine learning.
+
++ This section has two parts: **basics of evaluating machine learning algorithms** and **conditional probabilities**.
+
+####Caret package, training and test sets, and overall accuracy
+```{r}
+library(dplyr)
+#install.packages("caret")
+library(caret)
+#install.packages("dslabs")
+library(dslabs)
+data(heights)
+y=heights$sex
+x=heights$height
+#training and test sets
+set.seed(2)
+test_index=createDataPartition(y, times=1,p=0.5,list=F)
+train_set=heights[-test_index,]
+test_set=heights[test_index,]
+#accuracy
+y_hat=sample(c("Male","Female"),length(test_index),replace=T) %>%
+  factor(levels=levels(test_set$sex))
+mean(y_hat==test_set$sex) #around 50%
+heights %>%group_by(sex)%>%
+  summarize(mean(height),sd(height))
+y_hat=ifelse(x>62,"Male","Female") %>%
+  factor(levels=levels(test_set$sex))
+mean(y==y_hat) #50% -> 80%
+
+#try 10 different cutoffs
+library(purrr)
+cutoff=seq(61,70)
+accuracy=map_dbl(cutoff,function(x){
+  y_hat=ifelse(train_set$height>x,"Male","Female") %>%
+  factor(levels=levels(test_set$sex))
+  mean(y_hat==train_set$sex)
+})
+plot(cutoff,accuracy,type="b")
+max(accuracy) #83.6%
+best_cutoff=cutoff[which.max(accuracy)]
+best_cutoff #64
+y_hat=ifelse(test_set$height>best_cutoff,"Male","Female") %>%
+  factor(levels=levels(test_set$sex))
+mean(y_hat==test_set$sex) #81.7%
+```
+
+####`r "\U1F440"`Check
+**Q1**<br>
+For each of the following, indicate whether the outcome is continuous or categorical.
+
++ **Digit reader**: <font color= VioletRed>categorical</font><br>
+
++ **Movie recommendation ratings**: <font color= VioletRed>continuous</font><br>
+
++ **Spam filter**: <font color= VioletRed>categorical</font><br>
+
++ **Number of hospitalizations**: <font color= VioletRed>continuous</font><br>
+
++ **Search engine results**: <font color= VioletRed>categorical</font><br>
+
+**Q2**<br>
+How many features are available to us for prediction in the mnist digits dataset?<br>
+You can download the **mnist** dataset using the **read_mnist()** function from the dslabs package.
+```{r}
+mnist=read_mnist()
+ncol(mnist$train$images)
+```
+
+**Q3**<br>
+In the digit reader example, the outcomes are stored here: ```y <- mnist$train$labels```.<br>
+Can the following code be successfully operated? Why or why not?<br>
+```{r eval=FALSE}
+#eval=FALSE: 不執行
+y <- mnist$train$labels
+y[5] + y[6] #11
+y[5] > y[6] #TRUE
+```
+
++ <font color= VioletRed>Yes, because 9 + 2 = 11 and 9 > 2.</font><br>
+
++ <font color= gray>No, because y is not a numeric vector.<br>
+
++ No, because 11 is not one digit, it is two digits.<br>
+
++ No, because these are labels representing a category, not a number. A 9 represents a type of digit, not the number 9.</font><br>
+
+####Confusion matrix
+```{r}
+table(predicted=y_hat,actual=test_set$sex)
+test_set%>%
+  mutate(y_hat=y_hat)%>%
+  group_by(sex)%>%
+  summarize(accuracy=mean(y_hat==sex))
+prev=mean(y=="Male")
+prev
+```
+####Sensitivity and specificity
+
++ sensitivity : the ability of an algorithm to predict a positive outcome when the actual outcome is positive, y hat equals 1 whenever y equals 1.
+
++ specificity : the ability of an algorithm to not predict the positive, so y hat equals
+0, when the actual outcome is not a positive, y equals zero.
+
+![](ss.png){width=600px}
+<br><br>
+Sensitivity = TP/(TP+FN) = True positive rate (TPR) or recall<br>
+Specificity = TN/(TN+FP) = True negative rate (TNR)<br>
+&emsp;&emsp;&emsp;&emsp;&emsp;&emsp;= TP/(TP+FP) = Precision = Positive predictive value (PPV)
+<br><br>
+![](t.png){width=600px}
+
+
+
+```{r}
+#install.packages("e1071")
+library(e1071)
+confusionMatrix(data=y_hat,reference = test_set$sex)
+```
+
+####Balanced accuracy and F1 score
+```{r, out.width = "200px", echo=FALSE}
+knitr::include_graphics("f1.png")
+knitr::include_graphics("f2.png")
+knitr::include_graphics("f3.png")
+```
+
+```{r}
+cutoff=seq(61,70)
+F_1=map_dbl(cutoff,function(x){
+  y_hat=ifelse(train_set$height>x,"Male","Female") %>%
+  factor(levels=levels(test_set$sex))
+  F_meas(data=y_hat,reference=factor(train_set$sex))
+})
+plot(cutoff,F_1,type="b")
+max(F_1)
+best_cutoff=cutoff[which.max(F_1)]
+best_cutoff
+y_hat=ifelse(test_set$height>best_cutoff,"Male","Female") %>%
+  factor(levels=levels(test_set$sex))
+confusionMatrix(data=y_hat,reference = test_set$sex)
+```
+####Prevalence matters in practice
+Bayes' theorem<br>
+```{r, out.width = "400px", echo=FALSE}
+knitr::include_graphics("b1.png")
+```
+
+####ROC and precision-recall curves
+**R**eceiver **O**perating **C**haracteristic
+```{r}
+p=0.9
+y_hat=sample(c("Male","Female"),length(test_index),replace=T,prob=c(p,1-p))%>%
+  factor(levels=levels(test_set$sex))
+mean(y_hat==test_set$sex)
+```
+
+```{r eval=FALSE}
+cutoffs=c(50,seq(60,75),80)
+#Error: Result 1 must be a single double, not a list of length 3
+height_cutoff=map_dbl(cutoffs,function(x){
+  y_hat=ifelse(test_set$height>x,"Male","Female")%>%
+    factor(levels=c("Male","Female"))
+  list(method="Height cutoff",
+       FPR=1-specificity(y_hat,test_set$sex),
+       TPR=sensitivity(y_hat,test_set$sex))
+})
+
+guessing=map_dbl(probs,function(p){
+  y_hat=sample(c("Male","Female"),length(test_index),replace=T,prob = c(p,1-p))%>%
+    factor(levels=c("Male","Female"))
+  list(method="Guess",
+       recall=sensitivity(y_hat,test_set$sex),
+       precision=precision(y_hat,test_set$sex))
+})
+height_cutoff=map_dbl(cutoffs,function(x){
+  y_hat=ifelse(test_set$height>x,"Male","Female")%>%
+    factor(levels=c("Male","Female"))
+  list(method="Height cutoff",
+       recall=sensitivity(y_hat,test_set$sex),
+       precision=precision(y_hat,test_set$sex))
+})
+```
+
+####`r "\U1F440"`Check 1
+The reported_heights and heights datasets were collected from three classes taught in the Departments of Computer Science and Biostatistics, as well as remotely through the Extension School. The Biostatistics class was taught in 2016 along with an online version offered by the Extension School. On 2016-01-25 at 8:15 AM, during one of the lectures, the instructors asked student to fill in the sex and height questionnaire that populated the reported_height dataset. The online students filled out the survey during the next few days, after the lecture was posted online. We can use this insight to define a variable which we will call type, to denote the type of student, inclass or online.<br>
+
+```{r}
+library(dslabs)
+library(dplyr)
+library(lubridate)
+data("reported_heights")
+
+dat <- mutate(reported_heights, date_time = ymd_hms(time_stamp)) %>%
+  filter(date_time >= make_date(2016, 01, 25) & date_time < make_date(2016, 02, 1)) %>%
+  mutate(type = ifelse(day(date_time) == 25 & hour(date_time) == 8 & between(minute(date_time), 15, 30), "inclass","online")) %>%
+  select(sex, type)
+
+y <- factor(dat$sex, c("Female", "Male"))
+x <- dat$type
+```
+**Q1**<br>
+The ```type``` column of ```dat``` indicates whether students took classes in person ("inclass") or online ("online"). What proportion of the inclass group is female? What proportion of the online group is female?
+```{r}
+table(x,y)
+26/(26+13) #inclass
+42/(42+69) #online
+#Ans
+dat %>% group_by(type) %>% summarize(prop_female = mean(sex == "Female"))
+```
+**Q2**<br>
+In the course videos, height cutoffs were used to predict sex. Instead of using height, use the type variable and report your prediction accuracy. Use what you learned about Q1 to make an informed guess about sex based on the most prevalent sex for each type. You do not need to split the data into training and test sets. Enter your answer as a percentage or decimal (eg "50%" or "0.50") to at least the hundredths place.
+```{r}
+#Ans
+y_hat <- ifelse(x == "online", "Male", "Female") %>% 
+      factor(levels = levels(y))
+mean(y_hat==y)
+```
+**Q3**<br>
+Write a line of code using the ```table``` function to show the confusion matrix between ```y_hat``` and ```y```. Use the format ```function(a, b)``` for your answer and do not name the columns and rows.
+```{r}
+table(y_hat,y)
+```
+**Q4**<br>
+What is the sensitivity of this prediction? You can use the ```sensitivity``` function from the **caret** package. Enter your answer as a percentage or decimal (eg "50%" or "0.50") to at least the hundredths place.
+```{r}
+sensitivity(y_hat,y)
+```
+**Q5**<br>
+What is the specificity of this prediction? You can use the ```specificity``` function from the **caret** package. Enter your answer as a percentage or decimal (eg "50%" or "0.50") to at least the hundredths place.
+```{r}
+specificity(y_hat, y)
+```
+**Q6**<br>
+What is the prevalence (% of females) in the ```dat``` dataset defined above? Enter your answer as a percentage or decimal (eg "50%" or "0.50") to at least the hundredths place.
+```{r}
+#Ans
+mean(y == "Female")
+```
+
+####`r "\U1F440"`Check 2
+We will practice building a machine learning algorithm using a new dataset, iris, that provides multiple predictors for us to use to train. To start, we will remove the setosa species and we will focus on the versicolor and virginica iris species using the following code:
+```{r}
+library(caret)
+data(iris)
+iris <- iris[-which(iris$Species=='setosa'),]
+y <- iris$Species
+```
+**Q1**<br>
+First let us create an even split of the data into train and test partitions using createDataPartition. The code with a missing line is given below:
+```{r}
+set.seed(2)
+# line of code
+createDataPartition(y,times=1,p=0.5,list=FALSE)
+test <- iris[test_index,]
+train <- iris[-test_index,]
+```
+Which code should be used in place of ```# line of code``` above?
+<font color= gray>
+
++ test_index <- createDataPartition(y,times=1,p=0.5)
+
++ test_index <- sample(2,length(y),replace=FALSE)
+
+<font color= VioletRed>
+
++ test_index <- createDataPartition(y,times=1,p=0.5,list=FALSE)</font>
+
++ test_index <- rep(1,length(y))</font><br>
+
+**Q2**<br>
+Next we will figure out the singular feature in the dataset that yields the greatest overall accuracy. You can use the code from the introduction and from Q1 to start your analysis.<br><br>
+Using only the train iris dataset, for each feature, perform a simple search to find the cutoff that produces the highest accuracy. Use the seq function over the range of each feature by intervals of 0.1 for this search<br><br>
+Which feature produces the highest accuracy?<br>
+<font color= gray>
+
++ Sepal.Length
+
++ Sepal.Width</font>
+
+<font color= VioletRed>
+
++ Petal.Length
+
++ Petal.Width</font><br>
+
+**Explanation**<br>
+This sample code can be used to determine that ```Petal.Length``` is the most accurate singular feature if you are using R 3.5.1 OR that ```Petal.Width``` is the most accurate singular feature if you are using R 3.6.
+
+```{r}
+#Ans
+foo <- function(x){
+	rangedValues <- seq(range(x)[1],range(x)[2],by=0.1)
+	sapply(rangedValues,function(i){
+		y_hat <- ifelse(x>i,'virginica','versicolor')
+		mean(y_hat==train$Species)
+	})
+}
+predictions <- apply(train[,-5],2,foo)
+sapply(predictions,max)	
+```
+**Q3**<br>
+Using the smart cutoff value calculated on the training data from Q2, what is the overall accuracy in the ```test``` data?
+```{r}
+#Ans
+predictions <- foo(train[,3])
+rangedValues <- seq(range(train[,3])[1],range(train[,3])[2],by=0.1)
+cutoffs <-rangedValues[which(predictions==max(predictions))]
+
+y_hat <- ifelse(test[,3]>cutoffs[1],'virginica','versicolor')
+mean(y_hat==test$Species)	
+#correct answer is 0.90
+```
+**Q4**<br>
+Notice that we had an overall accuracy greater than 96% in the training data, but the overall accuracy was lower in the test data. This can happen often if we overtrain. In fact, it could be the case that a single feature is not the best choice. For example, a combination of features might be optimal. Using a single feature and optimizing the cutoff as we did on our training data can lead to overfitting.<br><br>
+Given that we know the test data, we can treat it like we did our training data to see if the same feature with a different cutoff will optimize our predictions.<br><br>
+Which feature best optimizes our overall accuracy?<br>
+<font color= gray>
+
++ Sepal.Length
+
++ Sepal.Width
+
++ Petal.Length</font>
+
+<font color= VioletRed>
+
++ Petal.Width</font><br>
+
+**Q5**<br>
+Now we will perform some exploratory data analysis on the data.
+```{r}
+plot(iris,pch=21,bg=iris$Species)
+```
+<br>
+Notice that ```Petal.Length``` and ```Petal.Width``` in combination could potentially be more information than either feature alone.<br><br>
+Optimize the the cutoffs for ```Petal.Length``` and ```Petal.Width``` separately in the train dataset by using the ```seq``` function with increments of 0.1. Then, report the overall accuracy when applied to the test dataset by creating a rule that predicts virginica if ```Petal.Length``` is greater than the length cutoff OR ```Petal.Width``` is greater than the width cutoff, and versicolor otherwise.<br><br>
+What is the overall accuracy for the test data now?
+```{r}
+#Ans
+library(caret)
+data(iris)
+iris <- iris[-which(iris$Species=='setosa'),]
+y <- iris$Species
+
+plot(iris,pch=21,bg=iris$Species)
+
+set.seed(2)
+test_index <- createDataPartition(y,times=1,p=0.5,list=FALSE)
+test <- iris[test_index,]
+train <- iris[-test_index,]
+            
+petalLengthRange <- seq(range(train$Petal.Length)[1],range(train$Petal.Length)[2],by=0.1)
+petalWidthRange <- seq(range(train$Petal.Width)[1],range(train$Petal.Width)[2],by=0.1)
+
+length_predictions <- sapply(petalLengthRange,function(i){
+		y_hat <- ifelse(train$Petal.Length>i,'virginica','versicolor')
+		mean(y_hat==train$Species)
+	})
+length_cutoff <- petalLengthRange[which.max(length_predictions)] # 4.7
+
+width_predictions <- sapply(petalWidthRange,function(i){
+		y_hat <- ifelse(train$Petal.Width>i,'virginica','versicolor')
+		mean(y_hat==train$Species)
+	})
+width_cutoff <- petalWidthRange[which.max(width_predictions)] # 1.5
+
+y_hat <- ifelse(test$Petal.Length>length_cutoff | test$Petal.Width>width_cutoff,'virginica','versicolor')
+mean(y_hat==test$Species)
+```
+####Conditional probabilities
+####Conditional expectations and loss function
+main task of machine learning:<br>
+use data to estimate conditional probabilities<br>
+f(x) = E(Y | X = x)<br>
+for any set of features<br>
+x = (x<sub>1</sub>,...,x<sub>p</sub>)<br>
+
+####`r "\U1F440"`Check 1
+**Q1**<br>
+In a previous module, we covered Bayes' theorem and the Bayesian paradigm. Conditional probabilities are a fundamental part of this previous covered rule.<br>
+```{r, out.width = "250px", echo=FALSE}
+knitr::include_graphics("b2.png")
+```
+<br>
+We first review a simple example to go over conditional probabilities.<br>
+Assume a patient comes into the doctor’s office to test whether they have a particular disease.<br>
+
++ The test is positive 85% of the time when tested on a patient with the disease (high sensitivity): P(test+|disease)=0.85
+
++ The test is negative 90% of the time when tested on a healthy patient (high specificity): P(test-|healthy)=0.90
+
++ The disease is prevalent in about 2% of the community: P(disease)=0.02
+
+Using Bayes' theorem, calculate the probability that you have the disease if the test is positive.
+```{r, out.width = "800px", echo=FALSE}
+knitr::include_graphics("e1.png")
+```
+```{r, out.width = "400px", echo=FALSE}
+knitr::include_graphics("e2.png")
+```
+
+The following 4 questions (Q2-Q5) all relate to implementing this calculation using R.<br>
+We have a hypothetical population of 1 million individuals with the following conditional probabilities as described below:<br>
+
++ The test is positive 85% of the time when tested on a patient with the disease (high sensitivity): P(test+|disease)=0.85
+
++ The test is negative 90% of the time when tested on a healthy patient (high specificity): P(test-|healthy)=0.90
+
++ The disease is prevalent in about 2% of the community: P(disease)=0.02
+
+Here is some sample code to get you started:
+```{r}
+set.seed(1)
+disease <- sample(c(0,1), size=1e6, replace=TRUE, prob=c(0.98,0.02))
+test <- rep(NA, 1e6)
+test[disease==0] <- sample(c(0,1), size=sum(disease==0), replace=TRUE, prob=c(0.90,0.10))
+test[disease==1] <- sample(c(0,1), size=sum(disease==1), replace=TRUE, prob=c(0.15, 0.85))
+```
+
+**Q2**<br>
+What is the probability that a test is positive?
+```{r}
+#Ans
+mean(test)
+```
+**Q3**<br>
+What is the probability that an individual has the disease if the test is negative?
+```{r}
+#Ans
+mean(disease[test==0])
+```
+**Q4**<br>
+What is the probability that you have the disease if the test is positive?
+```Remember: calculate the conditional probability the disease is positive assuming a positive test.```
+```{r}
+mean(disease[test==1]==1)
+```
+**Q5**<br>
+If the test is positive, what is the relative risk of having the disease?
+```First calculate the probability of having the disease given a positive test, then normalize it against the disease prevalence.```
+```{r}
+mean(disease[test==1]==1)/mean(disease==1)
+```
+
+####`r "\U1F440"`Check 2
+**Q1**<br>
+We are now going to write code to compute conditional probabilities for being male in the ```heights``` dataset. Round the heights to the closest inch. Plot the estimated conditional probability \( P(x) = \mbox{Pr}(\mbox{Male} | \mbox{height}=x)\) for each \(x\).
+
+Part of the code is provided here:
+```{r}
+library(dslabs)
+data("heights")
+###MISSING CODE###
+heights %>% 
+	mutate(height = round(height)) %>%
+	group_by(height) %>%
+	summarize(p = mean(sex == "Male")) %>%
+##################
+  qplot(height, p, data =.)
+```
+<br>Which of the following blocks of code can be used to replace **MISSING CODE** to make the correct plot?
+
+```
+heights %>% 
+	group_by(height) %>%
+	summarize(p = mean(sex == "Male")) %>%
+```
+```
+heights %>% 
+	mutate(height = round(height)) %>%
+	group_by(height) %>%
+	summarize(p = mean(sex == "Female")) %>%
+```
+```
+heights %>% 
+	mutate(height = round(height)) %>%
+	summarize(p = mean(sex == "Male")) %>%
+```
+<font color = VioletRed>Correct</font>
+```
+heights %>% 
+	mutate(height = round(height)) %>%
+	group_by(height) %>%
+	summarize(p = mean(sex == "Male")) %>%
+```
+**Q2**<br
+In the plot we just made in Q1 we see high variability for low values of height. This is because we have few data points. This time use the quantile (\ 0.1,0.2,\dots,0.9 \)and the ```cut``` function to assure each group has the same number of points. Note that for any numeric vector ```x```, you can create groups based on quantiles like this: ```cut(x, quantile(x, seq(0, 1, 0.1)), include.lowest = TRUE)```.<br>
+Part of the code is provided here:
+```{r}
+ps <- seq(0, 1, 0.1)
+heights %>% 
+	###MISSING CODE###
+  mutate(g = cut(height, quantile(height, ps), include.lowest = TRUE)) %>%
+  ##################
+	group_by(g) %>%
+	summarize(p = mean(sex == "Male"), height = mean(height)) %>%
+	qplot(height, p, data =.)
+```
+<br>Which of the following lines of code can be used to replace **MISSING CODE** to make the correct plot?
+```mutate(g = cut(male, quantile(height, ps), include.lowest = TRUE)) %>%```
+```mutate(g = cut(height, quantile(height, ps), include.lowest = TRUE)) %>%```<font color = VioletRed>Correct</font>
+```mutate(g = cut(female, quantile(height, ps), include.lowest = TRUE)) %>%```
+```mutate(g = cut(height, quantile(height, ps))) %>%```
+
+**Q3**<br>
+You can generate data from a bivariate normal distrubution using the **MASS** package using the following code.
+```{r}
+Sigma <- 9*matrix(c(1,0.5,0.5,1), 2, 2)
+dat <- MASS::mvrnorm(n = 10000, c(69, 69), Sigma) %>%
+	data.frame() %>% setNames(c("x", "y"))
+```
+And make a quick plot using ```plot(dat)```.<br>
+
+Using an approach similar to that used in the previous exercise, let's estimate the conditional expectations and make a plot. Part of the code has been provided for you:
+```{r}
+ps <- seq(0, 1, 0.1)
+dat %>% 
+	###MISSING CODE###
+  mutate(g = cut(x, quantile(x, ps), include.lowest = TRUE)) %>%
+  group_by(g) %>%
+  summarize(y = mean(y), x = mean(x)) %>%
+  ##################
+	qplot(x, y, data =.)
+```
+<br>Which of the following blocks of code can be used to replace **MISSING CODE** to make the correct plot?<br>
+<font color = VioletRed>Correct</font>
+```
+mutate(g = cut(x, quantile(x, ps), include.lowest = TRUE)) %>%
+group_by(g) %>%
+summarize(y = mean(y), x = mean(x)) %>%
+```
+```
+mutate(g = cut(x, quantile(x, ps))) %>%
+group_by(g) %>%
+summarize(y = mean(y), x = mean(x)) %>%
+```
+```
+mutate(g = cut(x, quantile(x, ps), include.lowest = TRUE)) %>%
+summarize(y = mean(y), x = mean(x)) %>%
+```
+```
+mutate(g = cut(x, quantile(x, ps), include.lowest = TRUE)) %>%
+group_by(g) %>%
+summarize(y =(y), x =(x)) %>%
+```
+
+
+
+
+<br><br><br>
